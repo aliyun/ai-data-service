@@ -1,4 +1,5 @@
 // HTTP layer of the local gateway: request guards, static assets, configuration and the ADA proxy.
+import { timingSafeEqual } from 'node:crypto'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { createServer } from 'node:http'
@@ -40,6 +41,10 @@ export interface AppOptions {
   endpointOverride?: URL
   /** Extra origins that may call the API, used only by the Vite dev server. */
   devOrigins?: readonly string[]
+  /** https origins the gateway is published under when it runs remotely, for example on Function Compute. */
+  publicOrigins?: readonly string[]
+  /** When set, every `/api/` request must carry `Authorization: Bearer <token>`. Required off loopback. */
+  accessToken?: string
 }
 
 class HttpError extends Error {
@@ -86,17 +91,25 @@ export function isAllowedRequest(
   method: string,
   port: number,
   devOrigins: readonly string[] = [],
+  publicOrigins: readonly string[] = [],
 ): boolean {
-  const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`])
-  for (const origin of devOrigins) allowedHosts.add(new URL(origin).host)
+  const allowedOrigins = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`].map((host) => `http://${host}`))
+  for (const origin of [...devOrigins, ...publicOrigins]) allowedOrigins.add(new URL(origin).origin)
+  const allowedHosts = new Set([...allowedOrigins].map((origin) => new URL(origin).host))
   if (!headers.host || !allowedHosts.has(headers.host)) return false
   const origin = headers.origin
-  if (origin !== undefined) {
-    const allowedOrigins = new Set([...allowedHosts].map((host) => `http://${host}`))
-    return allowedOrigins.has(origin)
-  }
+  if (origin !== undefined) return allowedOrigins.has(origin)
   // Same-origin GETs may omit Origin; a non-GET without it does not come from a page we serve.
   return method === 'GET' || method === 'HEAD'
+}
+
+/** Constant-time comparison, so response timing does not reveal how much of a guessed token was right. */
+export function hasAccessToken(headers: IncomingMessage['headers'], token: string): boolean {
+  const match = /^Bearer (.+)$/.exec(headers.authorization ?? '')
+  if (!match) return false
+  const given = Buffer.from(match[1] as string)
+  const expected = Buffer.from(token)
+  return given.length === expected.length && timingSafeEqual(given, expected)
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -158,7 +171,7 @@ function serveStatic(req: IncomingMessage, res: ServerResponse, staticDir: strin
 }
 
 export function createApp(options: AppOptions): Server {
-  const { config, staticDir, port, endpointOverride, devOrigins = [] } = options
+  const { config, staticDir, port, endpointOverride, devOrigins = [], publicOrigins = [], accessToken } = options
 
   function context(): ClientContext {
     const credentials = config.credentials()
@@ -247,10 +260,14 @@ export function createApp(options: AppOptions): Server {
 
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const method = req.method ?? 'GET'
-    if (!isAllowedRequest(req.headers, method, port, devOrigins)) {
-      throw new HttpError(403, 'ForbiddenOrigin', '只允许从本机页面访问。')
+    if (!isAllowedRequest(req.headers, method, port, devOrigins, publicOrigins)) {
+      throw new HttpError(403, 'ForbiddenOrigin', '只允许从本服务的页面访问。')
     }
     const pathname = new URL(req.url ?? '/', 'http://local').pathname
+    // Static assets hold no secrets; everything under /api/ can spend the account's money.
+    if (accessToken && pathname.startsWith('/api/') && !hasAccessToken(req.headers, accessToken)) {
+      throw new HttpError(401, 'Unauthorized', '需要访问令牌。')
+    }
     if (!pathname.startsWith('/api/')) {
       if (method !== 'GET' && method !== 'HEAD') throw new HttpError(405, 'MethodNotAllowed', 'Method not allowed.')
       return serveStatic(req, res, staticDir)

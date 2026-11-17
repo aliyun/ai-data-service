@@ -12,7 +12,7 @@ OpenADA 是阿里云 ADA 的本地客户端：一个只监听 `127.0.0.1` 的 No
 2. **让用户自己输入凭证。** 推荐让用户在页面的配置表单里填写；也可以由用户自己编辑 `.env.local`，或在自己的终端里 `export`。
 3. **不要读取或打印凭证文件。** 包括 `.env.local`、`~/.aliyun/` 下的文件，以及进程的环境变量。判断是否配置好，只看 `GET /api/config`，它只返回脱敏后的 AccessKey ID。
 4. **不要提交 `.env.local`。** 它已在 `.gitignore` 中。
-5. **不要让网关监听 `127.0.0.1` 以外的地址，** 也不要把端口转发或暴露到公网。网关没有登录机制，谁能访问它，谁就能以用户的身份调用 ADA。
+5. **不要让网关监听 `127.0.0.1` 以外的地址，** 也不要把端口转发或暴露到公网。网关没有用户登录，谁能访问它，谁就能以用户的身份调用 ADA。用户明确要求远程部署时，必须设置 `OPEN_ADA_ACCESS_TOKEN`，令牌由用户自己保管，不要打印或写进代码和日志。
 6. **会产生费用的命令要先征得同意。** `npm run smoke -- --chat` 和 `npm run smoke -- --write` 会在用户账号下创建资源并调用模型。
 7. **提醒用户使用 RAM 用户的 AccessKey，** 不要用主账号的。
 
@@ -98,6 +98,9 @@ npm run smoke
 | `OPEN_ADA_MOCK_PORT` | demo 模拟服务的端口，默认 `8788` |
 | `OPEN_ADA_ENDPOINT` | 自定义接入地址，例如 `https://ada-vpc.cn-hangzhou.aliyuncs.com/`。只接受 https 地址，或本机的 http 地址 |
 | `OPEN_ADA_ENV_FILE` | 凭证文件路径，默认是仓库根目录的 `.env.local` |
+| `OPEN_ADA_HOST` | 网关监听地址，默认 `127.0.0.1`。设为其他地址时必须同时设置 `OPEN_ADA_ACCESS_TOKEN`，否则拒绝启动 |
+| `OPEN_ADA_ACCESS_TOKEN` | 访问令牌，至少 32 个字符。设置后所有 `/api/` 请求都要带 `Authorization: Bearer <令牌>`，页面会提示输入 |
+| `OPEN_ADA_PUBLIC_ORIGIN` | 远程部署时页面的 https 地址，例如 `https://ada.example.com`，多个用逗号分隔 |
 
 ## 排错
 

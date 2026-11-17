@@ -115,6 +115,9 @@ cp .env.example .env.local   # 或者直接 export 下面的变量
 | `OPEN_ADA_PORT` | 网关端口，默认 `8787` |
 | `OPEN_ADA_ENDPOINT` | 自定义 ADA 接入地址，例如 VPC 地址 `https://ada-vpc.cn-hangzhou.aliyuncs.com/`。只接受 https 地址，或本机（loopback）的 http 地址 |
 | `OPEN_ADA_ENV_FILE` | 凭证文件路径，默认是仓库根目录的 `.env.local` |
+| `OPEN_ADA_HOST` | 网关监听地址，默认 `127.0.0.1`。设为其他地址时必须同时设置 `OPEN_ADA_ACCESS_TOKEN`，否则拒绝启动 |
+| `OPEN_ADA_ACCESS_TOKEN` | 访问令牌，至少 32 个字符。设置后所有 `/api/` 请求都要带 `Authorization: Bearer <令牌>`，页面会提示输入 |
+| `OPEN_ADA_PUBLIC_ORIGIN` | 远程部署时页面的 https 地址，例如 `https://ada.example.com`，多个用逗号分隔 |
 | `OPEN_ADA_DEV_PORT` | `npm run dev` 的 Vite 端口，默认 `5173` |
 | `OPEN_ADA_MOCK_PORT` | `npm run demo` 的模拟服务端口，默认 `8788` |
 

@@ -8,7 +8,7 @@ import { after, before, test } from 'node:test'
 import { MOCK_ACCESS_KEY_ID, MOCK_ACCESS_KEY_SECRET, createMockAda } from '../scripts/mock-ada.ts'
 import { ACTIONS, getAction } from '../server/actions.ts'
 import { resolveEndpointOverride } from '../server/ada-client.ts'
-import { createApp, isAllowedRequest } from '../server/app.ts'
+import { createApp, hasAccessToken, isAllowedRequest } from '../server/app.ts'
 import { ConfigStore, maskKeyId, parseEnvFile } from '../server/config.ts'
 import { SseDecoder, normalizeFrame, type Frame } from '../server/sse.ts'
 
@@ -77,6 +77,36 @@ test('rejects cross-site requests and DNS rebinding', () => {
   assert.equal(isAllowedRequest({ host }, 'POST', 8787), false)
   assert.equal(isAllowedRequest({ host }, 'GET', 8787), true)
   assert.equal(isAllowedRequest({ host, origin: 'null' }, 'POST', 8787), false)
+})
+
+test('a published gateway accepts only its public origin', () => {
+  const published = ['https://ada.example.com']
+  const host = 'ada.example.com'
+  assert.equal(isAllowedRequest({ host, origin: 'https://ada.example.com' }, 'POST', 9000, [], published), true)
+  assert.equal(isAllowedRequest({ host }, 'GET', 9000, [], published), true)
+  assert.equal(isAllowedRequest({ host, origin: 'http://ada.example.com' }, 'POST', 9000, [], published), false)
+  assert.equal(isAllowedRequest({ host: 'evil.example', origin: 'https://evil.example' }, 'POST', 9000, [], published), false)
+})
+
+test('an access token guards the API but not the static page', async () => {
+  const token = 'x'.repeat(40)
+  const guardedPort = await reservePort()
+  const guarded = createApp({ config: new ConfigStore(envFile, {}), staticDir: tmpdir(), port: guardedPort, accessToken: token })
+  await listen(guarded, guardedPort)
+  const get = (pathname: string, headers: Record<string, string> = {}): Promise<Response> =>
+    fetch(`http://127.0.0.1:${guardedPort}${pathname}`, { headers })
+  try {
+    const missing = await get('/api/config')
+    assert.equal(missing.status, 401)
+    assert.equal(((await missing.json()) as { code: string }).code, 'Unauthorized')
+    assert.equal((await get('/api/config', { authorization: `Bearer ${token}x` })).status, 401)
+    assert.equal((await get('/api/config', { authorization: `Bearer ${token}` })).status, 200)
+    assert.notEqual((await get('/')).status, 401)
+    assert.equal(hasAccessToken({ authorization: `Basic ${token}` }, token), false)
+  } finally {
+    guarded.closeAllConnections()
+    guarded.close()
+  }
 })
 
 test('a foreign origin cannot reach the gateway', async () => {

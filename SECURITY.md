@@ -23,7 +23,7 @@ OpenADA 的本地网关保管 AccessKey 并代替浏览器签名请求，我们�
 ## 使用建议
 
 - 使用只有所需权限的 RAM 用户 AccessKey，不要使用主账号的 AccessKey。
-- 不要把网关监听地址或端口转发、暴露到 `127.0.0.1` 以外。
+- 不要把网关监听地址或端口转发、暴露到 `127.0.0.1` 以外。确需远程访问时，设置 `OPEN_ADA_ACCESS_TOKEN` 和 `OPEN_ADA_PUBLIC_ORIGIN`，并使用 HTTPS。
 - 不要在共享机器上使用长期有效的 AccessKey。
 
 更多说明见 README 的[安全](README.md#安全)一节。

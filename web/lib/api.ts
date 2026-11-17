@@ -1,4 +1,4 @@
-// Browser side of the local gateway. All requests go to this machine's gateway, which holds the AccessKey.
+// Browser side of the gateway. All requests go to the gateway that served this page, which holds the AccessKey.
 import type { ConfigStatus } from '../../server/config.ts'
 import type { Frame } from '../../server/sse.ts'
 import type { SessionTransport } from './session-controller.ts'
@@ -23,15 +23,35 @@ async function failure(response: Response): Promise<ApiError> {
   return new ApiError(response.status, body.code ?? `HTTP_${response.status}`, body.message ?? `请求失败（HTTP ${response.status}）。`, body.requestId)
 }
 
-async function post(path: string, body: object, signal?: AbortSignal): Promise<Response> {
-  const response = await fetch(path, {
+const TOKEN_KEY = 'open-ada.access-token'
+
+/** A gateway published remotely guards its API with an access token; a local one ignores the header. */
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
+  const send = (): Promise<Response> => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    const headers = new Headers(init.headers)
+    if (token) headers.set('authorization', `Bearer ${token}`)
+    return fetch(path, { ...init, headers })
+  }
+  let response = await send()
+  if (response.status === 401 && (await response.clone().json().catch(() => ({})) as { code?: string }).code === 'Unauthorized') {
+    const token = window.prompt('请输入访问令牌')?.trim()
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token)
+      response = await send()
+    }
+  }
+  if (!response.ok) throw await failure(response)
+  return response
+}
+
+function post(path: string, body: object, signal?: AbortSignal): Promise<Response> {
+  return request(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
     ...(signal ? { signal } : {}),
   })
-  if (!response.ok) throw await failure(response)
-  return response
 }
 
 export async function callAda(action: string, params: object = {}): Promise<Record<string, unknown>> {
@@ -44,9 +64,7 @@ export function rpcBody(params: object): { Jsonrpc: string; Id: string; Params: 
 }
 
 export async function getConfig(): Promise<ConfigStatus> {
-  const response = await fetch('/api/config')
-  if (!response.ok) throw await failure(response)
-  return (await response.json()) as ConfigStatus
+  return (await (await request('/api/config')).json()) as ConfigStatus
 }
 
 export async function saveCredentials(input: { accessKeyId: string; accessKeySecret: string; securityToken?: string; region: string }): Promise<ConfigStatus> {

@@ -4,14 +4,34 @@ import { resolveEndpointOverride } from './ada-client.ts'
 import { createApp } from './app.ts'
 import { ConfigStore } from './config.ts'
 
-// The gateway holds an AccessKey and has no user authentication, so it only ever listens on loopback.
-const HOST = '127.0.0.1'
+// The gateway holds an AccessKey, so it listens on loopback unless an access token guards the API.
+const HOST = process.env.OPEN_ADA_HOST ?? '127.0.0.1'
+const LOOPBACK = ['127.0.0.1', 'localhost', '::1']
+const MIN_TOKEN_LENGTH = 32
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const port = Number(process.env.OPEN_ADA_PORT ?? 8787)
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   console.error('OPEN_ADA_PORT must be a valid port number.')
   process.exit(1)
+}
+
+const accessToken = process.env.OPEN_ADA_ACCESS_TOKEN || undefined
+if (accessToken && accessToken.length < MIN_TOKEN_LENGTH) {
+  console.error(`OPEN_ADA_ACCESS_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters.`)
+  process.exit(1)
+}
+if (!LOOPBACK.includes(HOST) && !accessToken) {
+  console.error('OPEN_ADA_HOST is not a loopback address. Set OPEN_ADA_ACCESS_TOKEN to protect the API.')
+  process.exit(1)
+}
+
+const publicOrigins = (process.env.OPEN_ADA_PUBLIC_ORIGIN ?? '').split(',').map((value) => value.trim()).filter(Boolean)
+for (const origin of publicOrigins) {
+  if (new URL(origin).protocol !== 'https:') {
+    console.error('OPEN_ADA_PUBLIC_ORIGIN must use https.')
+    process.exit(1)
+  }
 }
 
 const endpointOverride = resolveEndpointOverride(process.env.OPEN_ADA_ENDPOINT)
@@ -23,6 +43,8 @@ const server = createApp({
   staticDir: path.join(ROOT, 'dist'),
   port,
   devOrigins,
+  publicOrigins,
+  ...(accessToken ? { accessToken } : {}),
   ...(endpointOverride ? { endpointOverride } : {}),
 })
 
