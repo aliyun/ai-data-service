@@ -240,7 +240,9 @@ npm run smoke -- --write               # 新建临时技能和智能体，读回
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。提交前请确认 `npm run typecheck` 和 `npm test` 都已通过；改动界面时，请附上 `npm run demo` 下的截图。
+欢迎提交 Issue 和 Pull Request。提交前请确认 `npm run typecheck` 和 `npm test` 都已通过；改动界面时，请附上 `npm run demo` 下的截图。详见[贡献指南](CONTRIBUTING.md)和[行为准则](CODE_OF_CONDUCT.md)。
+
+发现安全漏洞时，请按 [SECURITY.md](SECURITY.md) 私下报告，不要提交公开 Issue。
 
 ## 许可证
 

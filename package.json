@@ -4,6 +4,14 @@
   "private": true,
   "description": "A lightweight, local-first client for Alibaba Cloud ADA (AI-native big data service), built on the public Ada/2026-07-01 OpenAPI.",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/aliyun/ai-data-service#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aliyun/ai-data-service.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aliyun/ai-data-service/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.18.0"
